@@ -1,0 +1,279 @@
+@baseUrl = http://localhost:3000
+
+### 1. Створити фільм
+# @name createFilm
+POST {{baseUrl}}/films
+Content-Type: application/json
+
+{
+  "title": "Дюна: Частина друга",
+  "durationMinutes": 166,
+  "releaseYear": 2024
+}
+
+### 1a. Помилка 400: відсутнє поле
+POST {{baseUrl}}/films
+Content-Type: application/json
+
+{
+  "title": "Без року"
+}
+
+### 1b. Помилка 400: неправильний тип поля
+POST {{baseUrl}}/films
+Content-Type: application/json
+
+{
+  "title": "Тип",
+  "durationMinutes": "багато",
+  "releaseYear": 2020
+}
+
+### 2. Отримати всі фільми
+GET {{baseUrl}}/films
+
+### 3. Отримати фільм за id
+GET {{baseUrl}}/films/{{createFilm.response.body.id}}
+
+### 3a. Помилка 404: фільму не існує
+GET {{baseUrl}}/films/999999
+
+### 4. Оновити фільм
+PATCH {{baseUrl}}/films/{{createFilm.response.body.id}}
+Content-Type: application/json
+
+{
+  "releaseYear": 2021
+}
+
+### 4a. Помилка 400: неправильний тип при оновленні
+PATCH {{baseUrl}}/films/{{createFilm.response.body.id}}
+Content-Type: application/json
+
+{
+  "durationMinutes": "довго"
+}
+
+### 4b. Помилка 404: оновлення неіснуючого фільму
+PATCH {{baseUrl}}/films/999999
+Content-Type: application/json
+
+{
+  "releaseYear": 2021
+}
+
+### 5. Створити зал (3 ряди × 5 місць = 15 місць)
+# @name createHall
+POST {{baseUrl}}/halls
+Content-Type: application/json
+
+{
+  "name": "Червона зала",
+  "rows": 3,
+  "seatsPerRow": 5
+}
+
+### 5a. Помилка 409: зал з такою назвою вже існує
+POST {{baseUrl}}/halls
+Content-Type: application/json
+
+{
+  "name": "Червона зала",
+  "rows": 2,
+  "seatsPerRow": 2
+}
+
+### 5b. Помилка 400: rows не є додатним цілим
+POST {{baseUrl}}/halls
+Content-Type: application/json
+
+{
+  "name": "Нульова зала",
+  "rows": 0,
+  "seatsPerRow": 5
+}
+
+### 6. Отримати всі зали
+GET {{baseUrl}}/halls
+
+### 7. Отримати зал з переліком місць (15 елементів)
+GET {{baseUrl}}/halls/{{createHall.response.body.id}}
+
+### 7a. Помилка 404: залу не існує
+GET {{baseUrl}}/halls/999999
+
+### 8. Створити сеанс
+# @name createShowing
+POST {{baseUrl}}/showings
+Content-Type: application/json
+
+{
+  "filmId": {{createFilm.response.body.id}},
+  "hallId": {{createHall.response.body.id}},
+  "startsAt": "2027-01-15T18:30:00.000Z",
+  "price": 12500
+}
+
+### 8a. Помилка 400: неіснуючий фільм
+POST {{baseUrl}}/showings
+Content-Type: application/json
+
+{
+  "filmId": 999999,
+  "hallId": {{createHall.response.body.id}},
+  "startsAt": "2027-01-15T18:30:00.000Z",
+  "price": 12500
+}
+
+### 8b. Помилка 400: неіснуючий зал
+POST {{baseUrl}}/showings
+Content-Type: application/json
+
+{
+  "filmId": {{createFilm.response.body.id}},
+  "hallId": 999999,
+  "startsAt": "2027-01-15T18:30:00.000Z",
+  "price": 12500
+}
+
+### 8c. Помилка 400: дата у минулому
+POST {{baseUrl}}/showings
+Content-Type: application/json
+
+{
+  "filmId": {{createFilm.response.body.id}},
+  "hallId": {{createHall.response.body.id}},
+  "startsAt": "2020-01-15T18:30:00.000Z",
+  "price": 12500
+}
+
+### 8d. Помилка 400: некоректна дата (не ISO 8601)
+POST {{baseUrl}}/showings
+Content-Type: application/json
+
+{
+  "filmId": {{createFilm.response.body.id}},
+  "hallId": {{createHall.response.body.id}},
+  "startsAt": "15.01.2027 18:30",
+  "price": 12500
+}
+
+### 8e. Помилка 400: ціна не є додатним цілим
+POST {{baseUrl}}/showings
+Content-Type: application/json
+
+{
+  "filmId": {{createFilm.response.body.id}},
+  "hallId": {{createHall.response.body.id}},
+  "startsAt": "2027-01-15T18:30:00.000Z",
+  "price": 0
+}
+
+### 9. Отримати всі сеанси (з назвами фільму й залу, відсортовані за часом)
+GET {{baseUrl}}/showings
+
+### 10. Фільтрація за фільмом
+GET {{baseUrl}}/showings?filmId={{createFilm.response.body.id}}
+
+### 11. Фільтрація за датою
+GET {{baseUrl}}/showings?date=2027-01-15
+
+### 11a. Помилка 400: неправильний формат date
+GET {{baseUrl}}/showings?date=2027/01/15
+
+### 12. Отримати сеанс за id
+GET {{baseUrl}}/showings/{{createShowing.response.body.id}}
+
+### 12a. Помилка 404: сеансу не існує
+GET {{baseUrl}}/showings/999999
+
+### 13. Перелік місць сеансу з ознакою зайнятості
+GET {{baseUrl}}/showings/{{createShowing.response.body.id}}/seats
+
+### 14. Забронювати два місця
+# @name createBooking
+POST {{baseUrl}}/showings/{{createShowing.response.body.id}}/bookings
+Content-Type: application/json
+
+{
+  "seats": [
+    { "row": 1, "seat": 1 },
+    { "row": 1, "seat": 2 }
+  ]
+}
+
+### 14a. Помилка 400: порожній масив місць
+POST {{baseUrl}}/showings/{{createShowing.response.body.id}}/bookings
+Content-Type: application/json
+
+{
+  "seats": []
+}
+
+### 14b. Помилка 400: місце повторюється у запиті
+POST {{baseUrl}}/showings/{{createShowing.response.body.id}}/bookings
+Content-Type: application/json
+
+{
+  "seats": [
+    { "row": 2, "seat": 1 },
+    { "row": 2, "seat": 1 }
+  ]
+}
+
+### 14c. Помилка 400: місця немає в залі
+POST {{baseUrl}}/showings/{{createShowing.response.body.id}}/bookings
+Content-Type: application/json
+
+{
+  "seats": [{ "row": 9, "seat": 1 }]
+}
+
+### 14d. Помилка 409: місце вже заброньоване
+POST {{baseUrl}}/showings/{{createShowing.response.body.id}}/bookings
+Content-Type: application/json
+
+{
+  "seats": [
+    { "row": 1, "seat": 2 },
+    { "row": 3, "seat": 3 }
+  ]
+}
+
+### 15. Бронювання конкретного сеансу
+GET {{baseUrl}}/showings/{{createShowing.response.body.id}}/bookings
+
+### 15a. Помилка 404: сеансу не існує
+GET {{baseUrl}}/showings/999999/bookings
+
+### 15b. Помилка 404: бронювання для неіснуючого сеансу
+POST {{baseUrl}}/showings/999999/bookings
+Content-Type: application/json
+
+{
+  "seats": [{ "row": 1, "seat": 1 }]
+}
+
+### 16. Усі бронювання
+GET {{baseUrl}}/bookings
+
+### 17. Помилка 409: видалення фільму, який використовується в сеансах
+DELETE {{baseUrl}}/films/{{createFilm.response.body.id}}
+
+### 18. Помилка 409: видалення залу, який використовується в сеансах
+DELETE {{baseUrl}}/halls/{{createHall.response.body.id}}
+
+### 19. Скасувати бронювання (місця звільняються)
+DELETE {{baseUrl}}/bookings/{{createBooking.response.body.id}}
+
+### 19a. Помилка 404: бронювання не існує
+DELETE {{baseUrl}}/bookings/999999
+
+### 20. Перевірка: місця знову вільні
+GET {{baseUrl}}/showings/{{createShowing.response.body.id}}/seats
+
+### 21. Перевірка: бронювань більше немає
+GET {{baseUrl}}/bookings
+
+### 22. Swagger-документація
+GET {{baseUrl}}/docs
