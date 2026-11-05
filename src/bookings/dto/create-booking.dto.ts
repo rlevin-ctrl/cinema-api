@@ -2,11 +2,13 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayNotEmpty,
+  ArrayUnique,
   IsArray,
   IsInt,
   Min,
   ValidateNested,
 } from 'class-validator';
+import { seatKey } from '../../common/types';
 
 export class SeatDto {
   @ApiProperty({ example: 1, description: 'Номер ряду' })
@@ -24,6 +26,9 @@ export class CreateBookingDto {
   @ApiProperty({ type: [SeatDto], description: 'Непорожній масив місць' })
   @IsArray({ message: 'seats має бути масивом' })
   @ArrayNotEmpty({ message: 'seats не може бути порожнім масивом' })
+  @ArrayUnique((seat: SeatDto) => seatKey(seat.row, seat.seat), {
+    message: 'Одне й те саме місце трапляється у списку двічі',
+  })
   @ValidateNested({ each: true })
   @Type(() => SeatDto)
   seats!: SeatDto[];

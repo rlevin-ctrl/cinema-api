@@ -5,7 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -36,18 +36,16 @@ export class BookingsController {
   })
   @ApiResponse({ status: 404, description: 'Сеанс не знайдено' })
   @ApiResponse({ status: 409, description: 'Місце вже заброньоване' })
-  create(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: CreateBookingDto,
-  ) {
+  create(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateBookingDto) {
     return this.bookingsService.create(id, dto);
   }
 
   @Get('showings/:id/bookings')
   @ApiOperation({ summary: 'Отримати бронювання сеансу' })
   @ApiResponse({ status: 200, description: 'Масив бронювань сеансу' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Сеанс не знайдено' })
-  findByShowing(@Param('id', ParseIntPipe) id: number) {
+  findByShowing(@Param('id', ParseUUIDPipe) id: string) {
     return this.bookingsService.findByShowing(id);
   }
 
@@ -55,8 +53,9 @@ export class BookingsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Скасувати бронювання' })
   @ApiResponse({ status: 204, description: 'Бронювання скасовано' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Бронювання не знайдено' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     this.bookingsService.remove(id);
   }
 }

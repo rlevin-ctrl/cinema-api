@@ -1,12 +1,12 @@
 export interface Film {
-  id: number;
+  id: string;
   title: string;
   durationMinutes: number;
   releaseYear: number;
 }
 
 export interface Hall {
-  id: number;
+  id: string;
   name: string;
   rows: number;
   seatsPerRow: number;
@@ -18,16 +18,19 @@ export interface Seat {
 }
 
 export interface Showing {
-  id: number;
-  filmId: number;
-  hallId: number;
+  id: string;
+  filmId: string;
+  hallId: string;
   startsAt: string;
   price: number;
 }
 
 export interface Booking {
-  id: number;
-  showingId: number;
+  id: string;
+  showingId: string;
   seats: Seat[];
   totalPrice: number;
 }
+
+/** Ключ місця для порівняння в межах сеансу. */
+export const seatKey = (row: number, seat: number): string => `${row}:${seat}`;

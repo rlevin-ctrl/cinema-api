@@ -3,7 +3,7 @@ import {
   Controller,
   Get,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
@@ -30,7 +30,7 @@ export class ShowingsController {
   @Get()
   @ApiOperation({ summary: 'Отримати сеанси з фільтрацією та сортуванням' })
   @ApiResponse({ status: 200, description: 'Масив сеансів з назвами' })
-  @ApiResponse({ status: 400, description: 'Некоректний формат date' })
+  @ApiResponse({ status: 400, description: 'Некоректний filmId або date' })
   findAll(@Query() query: FindShowingsQueryDto) {
     return this.showingsService.findAll(query);
   }
@@ -38,16 +38,18 @@ export class ShowingsController {
   @Get(':id')
   @ApiOperation({ summary: 'Отримати сеанс за id' })
   @ApiResponse({ status: 200, description: 'Сеанс з назвами фільму й залу' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Сеанс не знайдено' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.showingsService.findOne(id);
   }
 
   @Get(':id/seats')
   @ApiOperation({ summary: 'Перелік місць залу з ознакою зайнятості' })
   @ApiResponse({ status: 200, description: 'Масив місць з isBooked' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Сеанс не знайдено' })
-  seats(@Param('id', ParseIntPipe) id: number) {
+  seats(@Param('id', ParseUUIDPipe) id: string) {
     return this.showingsService.seatMap(id);
   }
 }

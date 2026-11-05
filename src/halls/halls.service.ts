@@ -1,18 +1,26 @@
 import {
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { Hall, Seat } from '../common/types';
-import { DataService } from '../data/data.service';
+import { ShowingsService } from '../showings/showings.service';
 import { CreateHallDto } from './dto/create-hall.dto';
 
 @Injectable()
 export class HallsService {
-  constructor(private readonly data: DataService) {}
+  private readonly halls: Hall[] = [];
+
+  constructor(
+    @Inject(forwardRef(() => ShowingsService))
+    private readonly showingsService: ShowingsService,
+  ) {}
 
   create(dto: CreateHallDto): Hall {
-    const duplicated = this.data.halls.some(
+    const duplicated = this.halls.some(
       (hall) => hall.name.toLowerCase() === dto.name.toLowerCase(),
     );
     if (duplicated) {
@@ -20,32 +28,32 @@ export class HallsService {
     }
 
     const hall: Hall = {
-      id: this.data.nextHallId(),
+      id: randomUUID(),
       name: dto.name,
       rows: dto.rows,
       seatsPerRow: dto.seatsPerRow,
     };
-    this.data.halls.push(hall);
+    this.halls.push(hall);
     return hall;
   }
 
   findAll(): Hall[] {
-    return this.data.halls;
+    return this.halls;
   }
 
-  findOne(id: number): Hall {
-    const hall = this.data.halls.find((item) => item.id === id);
+  findOne(id: string): Hall {
+    const hall = this.findById(id);
     if (!hall) {
       throw new NotFoundException(`Зал з id ${id} не знайдено`);
     }
     return hall;
   }
 
-  findById(id: number): Hall | undefined {
-    return this.data.halls.find((item) => item.id === id);
+  findById(id: string): Hall | undefined {
+    return this.halls.find((hall) => hall.id === id);
   }
 
-  withSeats(id: number): Hall & { seats: Seat[] } {
+  withSeats(id: string): Hall & { seats: Seat[] } {
     const hall = this.findOne(id);
     return { ...hall, seats: this.buildSeats(hall) };
   }
@@ -61,19 +69,20 @@ export class HallsService {
   }
 
   isSeatInHall(hall: Hall, row: number, seat: number): boolean {
-    return row >= 1 && row <= hall.rows && seat >= 1 && seat <= hall.seatsPerRow;
+    return (
+      row >= 1 && row <= hall.rows && seat >= 1 && seat <= hall.seatsPerRow
+    );
   }
 
-  remove(id: number): void {
+  remove(id: string): void {
     const hall = this.findOne(id);
-    const usedInShowings = this.data.showings.some(
-      (showing) => showing.hallId === id,
-    );
-    if (usedInShowings) {
+
+    if (this.showingsService.hasShowingsForHall(id)) {
       throw new ConflictException(
         `Зал з id ${id} використовується в сеансах і не може бути видалений`,
       );
     }
-    this.data.halls.splice(this.data.halls.indexOf(hall), 1);
+
+    this.halls.splice(this.halls.indexOf(hall), 1);
   }
 }

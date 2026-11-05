@@ -5,15 +5,11 @@ import {
   Get,
   HttpCode,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Patch,
   Post,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateFilmDto } from './dto/create-film.dto';
 import { UpdateFilmDto } from './dto/update-film.dto';
 import { FilmsService } from './films.service';
@@ -26,7 +22,10 @@ export class FilmsController {
   @Post()
   @ApiOperation({ summary: 'Створити фільм' })
   @ApiResponse({ status: 201, description: 'Фільм створено' })
-  @ApiResponse({ status: 400, description: 'Відсутнє поле або неправильний тип' })
+  @ApiResponse({
+    status: 400,
+    description: 'Відсутнє поле або неправильний тип',
+  })
   create(@Body() dto: CreateFilmDto) {
     return this.filmsService.create(dto);
   }
@@ -41,19 +40,21 @@ export class FilmsController {
   @Get(':id')
   @ApiOperation({ summary: 'Отримати фільм за id' })
   @ApiResponse({ status: 200, description: 'Обʼєкт фільму' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Фільм не знайдено' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.filmsService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Оновити фільм' })
   @ApiResponse({ status: 200, description: 'Оновлений фільм' })
+  @ApiResponse({
+    status: 400,
+    description: 'Неправильний тип поля або id не є UUID',
+  })
   @ApiResponse({ status: 404, description: 'Фільм не знайдено' })
-  update(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() dto: UpdateFilmDto,
-  ) {
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateFilmDto) {
     return this.filmsService.update(id, dto);
   }
 
@@ -61,9 +62,13 @@ export class FilmsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Видалити фільм' })
   @ApiResponse({ status: 204, description: 'Фільм видалено' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Фільм не знайдено' })
-  @ApiResponse({ status: 409, description: 'Фільм використовується в сеансах' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  @ApiResponse({
+    status: 409,
+    description: 'Фільм використовується в сеансах',
+  })
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     this.filmsService.remove(id);
   }
 }

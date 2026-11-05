@@ -1,16 +1,19 @@
 import {
   BadRequestException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Booking, Hall, Seat, Showing } from '../common/types';
-import { DataService } from '../data/data.service';
+import { randomUUID } from 'node:crypto';
+import { Seat, Showing } from '../common/types';
+import { BookingsService } from '../bookings/bookings.service';
 import { FilmsService } from '../films/films.service';
 import { HallsService } from '../halls/halls.service';
 import { CreateShowingDto, FindShowingsQueryDto } from './dto/showing.dto';
 
 export interface ShowingView {
-  id: number;
+  id: string;
   filmTitle: string;
   hallTitle: string;
   startsAt: string;
@@ -23,10 +26,14 @@ export interface SeatView extends Seat {
 
 @Injectable()
 export class ShowingsService {
+  private readonly showings: Showing[] = [];
+
   constructor(
-    private readonly data: DataService,
+    @Inject(forwardRef(() => FilmsService))
     private readonly filmsService: FilmsService,
     private readonly hallsService: HallsService,
+    @Inject(forwardRef(() => BookingsService))
+    private readonly bookingsService: BookingsService,
   ) {}
 
   create(dto: CreateShowingDto): ShowingView {
@@ -44,7 +51,7 @@ export class ShowingsService {
       );
     }
 
-    const startsAt = this.parseStartsAt(dto.startsAt);
+    const startsAt = new Date(dto.startsAt);
     if (startsAt.getTime() < Date.now()) {
       throw new BadRequestException(
         'startsAt вказує на момент у минулому: сеанс не можна створити',
@@ -52,97 +59,62 @@ export class ShowingsService {
     }
 
     const showing: Showing = {
-      id: this.data.nextShowingId(),
+      id: randomUUID(),
       filmId: dto.filmId,
       hallId: dto.hallId,
       startsAt: startsAt.toISOString(),
       price: dto.price,
     };
-    this.data.showings.push(showing);
+    this.showings.push(showing);
     return this.toView(showing);
   }
 
   findAll(query: FindShowingsQueryDto): ShowingView[] {
-    const filtered = this.data.showings.filter((showing) => {
-      if (query.filmId !== undefined && showing.filmId !== query.filmId) {
-        return false;
-      }
-      if (query.date && showing.startsAt.slice(0, 10) !== query.date) {
-        return false;
-      }
-      return true;
-    });
-
-    return filtered
+    return this.showings
+      .filter((showing) => {
+        const matchesFilm =
+          query.filmId === undefined || showing.filmId === query.filmId;
+        const matchesDate =
+          query.date === undefined ||
+          showing.startsAt.slice(0, 10) === query.date;
+        return matchesFilm && matchesDate;
+      })
       .sort((a, b) => {
         const diff = Date.parse(a.startsAt) - Date.parse(b.startsAt);
-        return diff !== 0 ? diff : a.id - b.id;
+        return diff !== 0 ? diff : a.id.localeCompare(b.id);
       })
       .map((showing) => this.toView(showing));
   }
 
-  findEntity(id: number): Showing {
-    const showing = this.data.showings.find((item) => item.id === id);
+  findEntity(id: string): Showing {
+    const showing = this.showings.find((item) => item.id === id);
     if (!showing) {
       throw new NotFoundException(`Сеанс з id ${id} не знайдено`);
     }
     return showing;
   }
 
-  findOne(id: number): ShowingView {
+  findOne(id: string): ShowingView {
     return this.toView(this.findEntity(id));
   }
 
-  seatMap(id: number): SeatView[] {
+  seatMap(id: string): SeatView[] {
     const showing = this.findEntity(id);
     const hall = this.hallsService.findOne(showing.hallId);
-    const booked = this.bookedSeats(id);
+    const booked = this.bookingsService.bookedSeats(showing.id);
 
     return this.hallsService.buildSeats(hall).map((seat) => ({
       ...seat,
-      isBooked: booked.has(this.seatKey(seat.row, seat.seat)),
+      isBooked: booked.has(`${seat.row}:${seat.seat}`),
     }));
   }
 
-  bookedSeats(showingId: number): Set<string> {
-    const keys = new Set<string>();
-    for (const booking of this.data.bookings) {
-      if (booking.showingId !== showingId) {
-        continue;
-      }
-      for (const seat of booking.seats) {
-        keys.add(this.seatKey(seat.row, seat.seat));
-      }
-    }
-    return keys;
+  hasShowingsForFilm(filmId: string): boolean {
+    return this.showings.some((showing) => showing.filmId === filmId);
   }
 
-  hallOf(showing: Showing): Hall {
-    return this.hallsService.findOne(showing.hallId);
-  }
-
-  seatKey(row: number, seat: number): string {
-    return `${row}:${seat}`;
-  }
-
-  bookingsOf(showingId: number): Booking[] {
-    this.findEntity(showingId);
-    return this.data.bookings.filter(
-      (booking) => booking.showingId === showingId,
-    );
-  }
-
-  private parseStartsAt(value: string): Date {
-    const isoLike = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?(Z|[+-]\d{2}:\d{2})?$/.test(
-      value,
-    );
-    const date = new Date(value);
-    if (!isoLike || Number.isNaN(date.getTime())) {
-      throw new BadRequestException(
-        'startsAt має бути коректною датою ISO 8601',
-      );
-    }
-    return date;
+  hasShowingsForHall(hallId: string): boolean {
+    return this.showings.some((showing) => showing.hallId === hallId);
   }
 
   private toView(showing: Showing): ShowingView {

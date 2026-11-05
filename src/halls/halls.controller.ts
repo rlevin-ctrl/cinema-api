@@ -5,7 +5,7 @@ import {
   Get,
   HttpCode,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -36,8 +36,9 @@ export class HallsController {
   @Get(':id')
   @ApiOperation({ summary: 'Отримати зал разом з переліком місць' })
   @ApiResponse({ status: 200, description: 'Зал з полем seats' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Зал не знайдено' })
-  findOne(@Param('id', ParseIntPipe) id: number) {
+  findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.hallsService.withSeats(id);
   }
 
@@ -45,9 +46,10 @@ export class HallsController {
   @HttpCode(204)
   @ApiOperation({ summary: 'Видалити зал' })
   @ApiResponse({ status: 204, description: 'Зал видалено' })
+  @ApiResponse({ status: 400, description: 'id не є коректним UUID' })
   @ApiResponse({ status: 404, description: 'Зал не знайдено' })
   @ApiResponse({ status: 409, description: 'Зал використовується в сеансах' })
-  remove(@Param('id', ParseIntPipe) id: number) {
+  remove(@Param('id', ParseUUIDPipe) id: string) {
     this.hallsService.remove(id);
   }
 }

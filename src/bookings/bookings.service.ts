@@ -1,41 +1,34 @@
 import {
   BadRequestException,
   ConflictException,
+  forwardRef,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Booking } from '../common/types';
-import { DataService } from '../data/data.service';
+import { randomUUID } from 'node:crypto';
+import { Booking, seatKey } from '../common/types';
 import { HallsService } from '../halls/halls.service';
 import { ShowingsService } from '../showings/showings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
 @Injectable()
 export class BookingsService {
+  private readonly bookings: Booking[] = [];
+
   constructor(
-    private readonly data: DataService,
+    @Inject(forwardRef(() => ShowingsService))
     private readonly showingsService: ShowingsService,
     private readonly hallsService: HallsService,
   ) {}
 
   findAll(): Booking[] {
-    return this.data.bookings;
+    return this.bookings;
   }
 
-  create(showingId: number, dto: CreateBookingDto): Booking {
+  create(showingId: string, dto: CreateBookingDto): Booking {
     const showing = this.showingsService.findEntity(showingId);
-    const hall = this.showingsService.hallOf(showing);
-
-    const seen = new Set<string>();
-    for (const seat of dto.seats) {
-      const key = this.showingsService.seatKey(seat.row, seat.seat);
-      if (seen.has(key)) {
-        throw new BadRequestException(
-          `Місце (ряд ${seat.row}, місце ${seat.seat}) повторюється у запиті`,
-        );
-      }
-      seen.add(key);
-    }
+    const hall = this.hallsService.findOne(showing.hallId);
 
     for (const seat of dto.seats) {
       if (!this.hallsService.isSeatInHall(hall, seat.row, seat.seat)) {
@@ -46,9 +39,9 @@ export class BookingsService {
       }
     }
 
-    const booked = this.showingsService.bookedSeats(showingId);
+    const booked = this.bookedSeats(showingId);
     for (const seat of dto.seats) {
-      if (booked.has(this.showingsService.seatKey(seat.row, seat.seat))) {
+      if (booked.has(seatKey(seat.row, seat.seat))) {
         throw new ConflictException(
           `Місце (ряд ${seat.row}, місце ${seat.seat}) вже заброньоване на цьому сеансі`,
         );
@@ -56,24 +49,40 @@ export class BookingsService {
     }
 
     const booking: Booking = {
-      id: this.data.nextBookingId(),
+      id: randomUUID(),
       showingId,
       seats: dto.seats.map((seat) => ({ row: seat.row, seat: seat.seat })),
       totalPrice: showing.price * dto.seats.length,
     };
-    this.data.bookings.push(booking);
+    this.bookings.push(booking);
     return booking;
   }
 
-  findByShowing(showingId: number): Booking[] {
-    return this.showingsService.bookingsOf(showingId);
+  findByShowing(showingId: string): Booking[] {
+    this.showingsService.findEntity(showingId);
+    return this.bookings.filter(
+      (booking) => booking.showingId === showingId,
+    );
   }
 
-  remove(id: number): void {
-    const booking = this.data.bookings.find((item) => item.id === id);
+  bookedSeats(showingId: string): Set<string> {
+    const keys = new Set<string>();
+    for (const booking of this.bookings) {
+      if (booking.showingId !== showingId) {
+        continue;
+      }
+      for (const seat of booking.seats) {
+        keys.add(seatKey(seat.row, seat.seat));
+      }
+    }
+    return keys;
+  }
+
+  remove(id: string): void {
+    const booking = this.bookings.find((item) => item.id === id);
     if (!booking) {
       throw new NotFoundException(`Бронювання з id ${id} не знайдено`);
     }
-    this.data.bookings.splice(this.data.bookings.indexOf(booking), 1);
+    this.bookings.splice(this.bookings.indexOf(booking), 1);
   }
 }
