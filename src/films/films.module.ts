@@ -1,10 +1,13 @@
-import { forwardRef, Module } from '@nestjs/common';
-import { ShowingsModule } from '../showings/showings.module';
-import { FilmsController } from './films.controller';
-import { FilmsService } from './films.service';
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+
+import { Showing } from "../showings/entities/showing.entity";
+import { Film } from "./entities/film.entity";
+import { FilmsController } from "./films.controller";
+import { FilmsService } from "./films.service";
 
 @Module({
-  imports: [forwardRef(() => ShowingsModule)],
+  imports: [TypeOrmModule.forFeature([Film, Showing])],
   controllers: [FilmsController],
   providers: [FilmsService],
   exports: [FilmsService],

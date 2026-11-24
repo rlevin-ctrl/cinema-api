@@ -1,60 +1,56 @@
 import {
   ConflictException,
-  forwardRef,
-  Inject,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { Hall, Seat } from '../common/types';
-import { ShowingsService } from '../showings/showings.service';
-import { CreateHallDto } from './dto/create-hall.dto';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+
+import { Showing } from "../showings/entities/showing.entity";
+import { CreateHallDto } from "./dto/create-hall.dto";
+import { Hall } from "./entities/hall.entity";
+
+export interface Seat {
+  row: number;
+  seat: number;
+}
 
 @Injectable()
 export class HallsService {
-  private readonly halls: Hall[] = [];
-
   constructor(
-    @Inject(forwardRef(() => ShowingsService))
-    private readonly showingsService: ShowingsService,
+    @InjectRepository(Hall)
+    private readonly halls: Repository<Hall>,
+    @InjectRepository(Showing)
+    private readonly showings: Repository<Showing>,
   ) {}
 
-  create(dto: CreateHallDto): Hall {
-    const duplicated = this.halls.some(
-      (hall) => hall.name.toLowerCase() === dto.name.toLowerCase(),
-    );
-    if (duplicated) {
+  async create(dto: CreateHallDto): Promise<Hall> {
+    const existing = await this.halls
+      .createQueryBuilder("hall")
+      .where("lower(hall.name) = lower(:name)", { name: dto.name })
+      .getOne();
+
+    if (existing) {
       throw new ConflictException(`Зал з назвою «${dto.name}» вже існує`);
     }
 
-    const hall: Hall = {
-      id: randomUUID(),
-      name: dto.name,
-      rows: dto.rows,
-      seatsPerRow: dto.seatsPerRow,
-    };
-    this.halls.push(hall);
-    return hall;
+    return this.halls.save(this.halls.create(dto));
   }
 
-  findAll(): Hall[] {
-    return this.halls;
+  findAll(): Promise<Hall[]> {
+    return this.halls.find({ order: { name: "ASC" } });
   }
 
-  findOne(id: string): Hall {
-    const hall = this.findById(id);
+  async findOne(id: string): Promise<Hall> {
+    const hall = await this.halls.findOne({ where: { id } });
     if (!hall) {
       throw new NotFoundException(`Зал з id ${id} не знайдено`);
     }
     return hall;
   }
 
-  findById(id: string): Hall | undefined {
-    return this.halls.find((hall) => hall.id === id);
-  }
-
-  withSeats(id: string): Hall & { seats: Seat[] } {
-    const hall = this.findOne(id);
+  async withSeats(id: string): Promise<Hall & { seats: Seat[] }> {
+    const hall = await this.findOne(id);
     return { ...hall, seats: this.buildSeats(hall) };
   }
 
@@ -74,15 +70,16 @@ export class HallsService {
     );
   }
 
-  remove(id: string): void {
-    const hall = this.findOne(id);
+  async remove(id: string): Promise<void> {
+    const hall = await this.findOne(id);
 
-    if (this.showingsService.hasShowingsForHall(id)) {
+    const showingsCount = await this.showings.count({ where: { hallId: id } });
+    if (showingsCount > 0) {
       throw new ConflictException(
-        `Зал з id ${id} використовується в сеансах і не може бути видалений`,
+        `Зал з id ${id} використовується у ${showingsCount} сеансах і не може бути видалений`,
       );
     }
 
-    this.halls.splice(this.halls.indexOf(hall), 1);
+    await this.halls.remove(hall);
   }
 }

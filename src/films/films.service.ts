@@ -1,67 +1,57 @@
 import {
   ConflictException,
-  forwardRef,
-  Inject,
   Injectable,
   NotFoundException,
-} from '@nestjs/common';
-import { randomUUID } from 'node:crypto';
-import { Film } from '../common/types';
-import { ShowingsService } from '../showings/showings.service';
-import { CreateFilmDto } from './dto/create-film.dto';
-import { UpdateFilmDto } from './dto/update-film.dto';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+
+import { Showing } from "../showings/entities/showing.entity";
+import { CreateFilmDto } from "./dto/create-film.dto";
+import { UpdateFilmDto } from "./dto/update-film.dto";
+import { Film } from "./entities/film.entity";
 
 @Injectable()
 export class FilmsService {
-  private readonly films: Film[] = [];
-
   constructor(
-    @Inject(forwardRef(() => ShowingsService))
-    private readonly showingsService: ShowingsService,
+    @InjectRepository(Film)
+    private readonly films: Repository<Film>,
+    @InjectRepository(Showing)
+    private readonly showings: Repository<Showing>,
   ) {}
 
-  create(dto: CreateFilmDto): Film {
-    const film: Film = {
-      id: randomUUID(),
-      title: dto.title,
-      durationMinutes: dto.durationMinutes,
-      releaseYear: dto.releaseYear,
-    };
-    this.films.push(film);
-    return film;
+  create(dto: CreateFilmDto): Promise<Film> {
+    return this.films.save(this.films.create(dto));
   }
 
-  findAll(): Film[] {
-    return this.films;
+  findAll(): Promise<Film[]> {
+    return this.films.find({ order: { title: "ASC" } });
   }
 
-  findOne(id: string): Film {
-    const film = this.findById(id);
+  async findOne(id: string): Promise<Film> {
+    const film = await this.films.findOne({ where: { id } });
     if (!film) {
       throw new NotFoundException(`Фільм з id ${id} не знайдено`);
     }
     return film;
   }
 
-  findById(id: string): Film | undefined {
-    return this.films.find((film) => film.id === id);
-  }
-
-  update(id: string, dto: UpdateFilmDto): Film {
-    const film = this.findOne(id);
+  async update(id: string, dto: UpdateFilmDto): Promise<Film> {
+    const film = await this.findOne(id);
     Object.assign(film, dto);
-    return film;
+    return this.films.save(film);
   }
 
-  remove(id: string): void {
-    const film = this.findOne(id);
+  async remove(id: string): Promise<void> {
+    const film = await this.findOne(id);
 
-    if (this.showingsService.hasShowingsForFilm(id)) {
+    const showingsCount = await this.showings.count({ where: { filmId: id } });
+    if (showingsCount > 0) {
       throw new ConflictException(
-        `Фільм з id ${id} використовується в сеансах і не може бути видалений`,
+        `Фільм з id ${id} використовується у ${showingsCount} сеансах і не може бути видалений`,
       );
     }
 
-    this.films.splice(this.films.indexOf(film), 1);
+    await this.films.remove(film);
   }
 }
